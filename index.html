@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+
+    <style>
+        body {
+            width: 98vw;
+            height: 80vh;
+            font-family: 'Cubic-11';
+        }
+
+        /* 遊戲區域 */
+        #game {
+            display: inline-block;
+            position: relative;
+            border-radius: 10px;
+            border: 10px double blue;
+            left: 50%;
+            width: 80%;
+            height: 900px;
+            transform: translateX(-48%);
+            padding: 10px;
+        }
+
+        /* 卡牌 */
+        .card {
+            width: 70px;
+            height: 100px;
+            position: relative;
+            margin: 10px;
+            display: inline-block;
+            /* 設定內層元素在 3D 空間內 */
+            transform-style: preserve-3d;
+            transition: transform 1s;
+        }
+
+        /* 卡牌正面 */
+        .card-front {
+            width: 100%;
+            height: 100%;
+            background-image: url('./cards/1H.jpg');
+            background-size: contain;
+            background-repeat: no-repeat;
+            background-position: center;
+            position: absolute;
+            backface-visibility: hidden;
+        }
+
+        /* 卡牌背面 */
+        .card-back {
+            width: 100%;
+            height: 100%;
+            background-image: url('./cards/Red_back.jpg');
+            background-size: contain;
+            background-repeat: no-repeat;
+            background-position: center;
+            position: absolute;
+            backface-visibility: hidden;
+            transform: rotateY(180deg);
+        }
+
+        /* 卡牌關 */
+        .card-close {
+            transform: rotateY(180deg);
+        }
+
+        /* 卡片RGB動畫 */
+        .card-rgb {
+            /* filter:drop-shadow(5px 5px 5px rgb(3, 214, 186)) */
+            /* animation: name duration timing-function delay iteration-count direction fill-mode; */
+            animation: animate 20s alternate infinite;
+        }
+
+        /* 卡片RGB動畫 */
+        @keyframes animate {
+            0% {
+                filter: drop-shadow(5px 5px 5px rgb(255, 0, 0))
+            }
+
+            100% {
+                filter: drop-shadow(5px 5px 5px rgb(0, 0, 255))
+            }
+        }
+
+        /* 字體 */
+        @font-face {
+            font-family: 'Cubic-11';
+            src: url('./font/Cubic_11.ttf');
+        }
+
+        /* 功能選項容器樣式 */
+        .list {
+            width: 100%;
+            height: 30px;
+            display: flex;
+            margin-bottom: 1rem;
+            justify-content: space-around;
+        }
+
+        /* 深色模式 */
+        .dark-mode {
+            background: black;
+            color: #fff;
+        }
+
+        /* 選擇難度彈出訊息視窗樣式 */
+        .select-box {
+            text-align: start;
+            padding: 1rem;
+            border-radius: 10px;
+        }
+
+        /* 功能選項樣式 */
+        .list-box {
+            width: 200px;
+            height: 30px;
+            background: blue;
+            color: yellow;
+            font-weight: bold;
+            text-align: center;
+            line-height: 30px;
+
+            &:hover {
+                outline: 5px solid yellow;
+                cursor: pointer;
+            }
+        }
+
+        /* 目前猜測文字容器 */
+        .now-info {
+            display: flex;
+            flex-wrap: wrap;
+            position: absolute;
+            justify-content: center;
+            align-items: center;
+            top: 10%;
+            left: 1%;
+            border: 5px double blue;
+            border-radius: 10px;
+            width: 140px;
+            height: 100px;
+        }
+
+        /* 最低猜測玩家文字容器 */
+        .minguesses-player-info {
+            display: flex;
+            flex-wrap: wrap;
+            position: absolute;
+            justify-content: center;
+            align-items: center;
+            top: 30%;
+            left: 1%;
+            border: 5px double blue;
+            border-radius: 10px;
+            width: 150px;
+            height: 300px;
+        }
+    </style>
+</head>
+
+<body>
+    <audio src="./card.mp3"></audio>
+    <div class="list">
+        <div class="button-sort-suits list-box">卡牌花色改變</div>
+        <div class="button-restart list-box">重新開始遊戲</div>
+        <div class="button-card-back-color list-box"><span>卡牌背面顏色:紅色</span></div>
+        <div class="button-perspective list-box">透視模式</div>
+        <div class="button-card-quantity list-box">難度選擇</div>
+        <div class="button-theme-toggle list-box"><span>夜</span></div>
+    </div>
+    <div class="now-info">目前猜測次數:<span class="text-guesses">0</span>限制次數:<span class="text-limit">不限制</span>
+    </div>
+    <div class="minguesses-player-info">最少猜測玩家:<span class="text-minguesses-player">-</span>最少總猜測次數:<span
+            class="text-minguesses">0</span>卡牌數量:<span class="text-totalcards">26</span>限制次數:<span
+            class="text-minguesseslimit">不限制</span></div>
+    <div id="game"></div>
+
+
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src='https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js'
+        integrity='sha512-v2CJ7UaYy4JwqLDIrZUI/4hqeoQieOmAZNXBeQyjo21dadnwR+8ZaIJVT8EE2iyI61OV8e6M8PP2/4hpQINQ/g=='
+        crossorigin='anonymous'></script>
+    <script>
+        // 卡牌開始順序 紅心、方塊、梅花、黑桃
+        let cardType = 'H'
+        // 卡牌背面顏色
+        let cardBackColor = 'Red_back'
+        // 透視模式狀態
+        let isPerspective = false
+        // 卡牌上限
+        let cardMax = 26;
+        // 卡牌名稱
+        const cardName = ['', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K']
+        // 猜測次數
+        let guessesCount = 0;
+        // 卡牌翻牌的狀態
+        let isCardActiveState = false;
+        // 最低猜測次數
+        let minGuessCount = 0;
+        // 最低猜測玩家
+        let minGuessPlayer = 0;
+        // 限制次數
+        let limitCount = 0;
+        // 限制暫存次數
+        let limitTempCount = 0;
+        // 目前限制次數的索引
+        let limitCountIndex = 0;
+        // 限制次數顯示
+        const limitCountName = ['不限制', '1倍', '1.5倍', '2倍']
+        //紀錄
+        const minguesses = [
+            {
+                name: ['-', '-', '-', '-'],
+                guesses: [0, 0, 0, 0],
+                totalCards: 26,
+                limitCounts: [0, 13, Math.floor(13 * 1.5), 13 * 2]
+            },
+            {
+                name: ['-', '-', '-', '-'],
+                guesses: [0, 0, 0, 0],
+                totalCards: 52,
+                limitCounts: [0, 26, Math.floor(26 * 1.5), 26 * 2]
+            },
+            {
+                name: ['-', '-', '-', '-'],
+                guesses: [0, 0, 0, 0],
+                totalCards: 78,
+                limitCounts: [0, 39, Math.floor(39 * 1.5), 39 * 2]
+            },
+            {
+                name: ['-', '-', '-', '-'],
+                guesses: [0, 0, 0, 0],
+                totalCards: 104,
+                limitCounts: [0, 52, Math.floor(52 * 1.5), 52 * 2]
+            }
+        ]
+        // 網頁背景模式
+        let isTheme = false;
+
+        loadData()
+        // 卡牌花色改變 
+        $('.button-sort-suits').on('click', () => {
+            Swal.fire({
+                title: "卡牌花色改變",
+                icon: "success"
+            });
+            checkCardSuits()
+        }
+        )
+
+        function checkCardSuits() {
+            $('.card').each(function (index, element) {
+                const dataNumber = $(this).attr('data-number')
+                let newDataNumber = parseInt(dataNumber.replace(cardType, ""))
+
+                if ((index + 1) % 27 === 1) {
+                    cardType = checkCard(cardType)
+                }
+
+                $(this).attr('data-number', newDataNumber + cardType)
+                $(this).children('.card-front').css('background-image', `url(./cards/${cardName[newDataNumber]}${cardType}.jpg)`)
+            })
+        }
+
+        // 重新開始遊戲
+        $('.button-restart').on('click', () => {
+            Swal.fire({
+                title: "重新開始遊戲",
+                icon: "success"
+            });
+            restartGame()
+        })
+
+        function restartGame() {
+            $('#game').empty()
+            createCard()
+            isPerspective = false;
+            cardRandomChange()
+            guessesCount = 0;
+            limitCount = limitTempCount
+            $('.text-guesses').text(`${guessesCount}`)
+
+            for (const cards of minguesses) {
+                if (cards.totalCards === cardMax) {
+                    $('.text-minguesses-player').text(cards.name[limitCountIndex])
+                    $('.text-minguesses').text(cards.guesses[limitCountIndex])
+                    $('.text-totalcards').text(cards.totalCards)
+                    $('.text-limit').text(`${limitCountIndex == 0 ? '不限制' : cards.limitCounts[limitCountIndex]}`)
+                    $('.text-minguesseslimit').text(`${limitCountIndex == 0 ? '不限制' : cards.limitCounts[limitCountIndex]}`)
+                }
+            }
+        }
+
+        // 卡牌背面樣式
+        $('.button-card-back-color').on('click', changeCardBackColor)
+
+        const inputOptions = new Promise((resolve) => {
+            setTimeout(() => {
+                resolve({
+                    26: "26",
+                    52: "52",
+                    78: "78",
+                    104: "104"
+                });
+            }, 1000);
+        });
+
+        // 切換透視模式
+        $('.button-perspective').on('click', () => {
+            isPerspective = !isPerspective
+            $('.card').children().toggleClass('card-back')
+        })
+
+        // 更換卡牌數量
+        $('.button-card-quantity').on('click', () => {
+            Swal.fire({
+                title: '難度選擇',
+                html: `
+                    <div style="display:flex;justify-content:space-evenly;">
+                        <div class="select-box">
+                            <p><b>卡片數量上限:</b></p>
+                            <label><input type="radio" name="group1" value="26">26</label><br>
+                            <label><input type="radio" name="group1" value="52">52</label><br> 
+                            <label><input type="radio" name="group1" value="78">78</label><br>                       
+                            <label><input type="radio" name="group1" value="104">104</label>
+                            </div>
+                        <div class="select-box">
+                            <p><b>次數限制:</b></p>
+                            <label><input type="radio" name="group2" value="0">不限制</label><br>
+                            <label><input type="radio" name="group2" value="1">1倍</label><br> 
+                            <label><input type="radio" name="group2" value="2">1.5倍</label><br>                       
+                            <label><input type="radio" name="group2" value="3">2倍</label>
+                        </div>
+                    </div>
+                `,
+                confirmButtonText: '提交',
+                preConfirm: async () => {
+                    const group1Value = document.querySelector('input[name="group1"]:checked')?.value;
+                    const group2Value = document.querySelector('input[name="group2"]:checked')?.value;
+
+                    if (!group1Value || !group2Value) {
+                        Swal.showValidationMessage('請完成選項')
+                        return false;
+                    }
+                    return { group1: group1Value, group2: group2Value }
+                }
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    cardMax = parseInt(result.value.group1)
+
+                    switch (parseInt(result.value.group2)) {
+                        case 0: limitTempCount = 0; limitCountIndex = 0; break
+                        case 1: limitTempCount = Math.floor(result.value.group2 * (cardMax / 2)); limitCountIndex = 1; break
+                        case 2: limitTempCount = Math.floor(1.5 * (cardMax / 2)); limitCountIndex = 2; break
+                        case 3: limitTempCount = Math.floor(2 * (cardMax / 2)); limitCountIndex = 3; break
+                    }
+                    Swal.fire(
+                        {
+                            title: '難度選擇',
+                            html: `
+                            <div style="text-align:left;width:200px;margin:auto;">
+                            卡片數量上限:${result.value.group1}<br>
+                            次數限制:${limitCountIndex == 0 ? '不限制' : limitTempCount}<br>
+                            請按下重新開始遊戲
+                            </div>`
+                        }
+                    )
+                }
+            })
+        })
+
+        $('.button-theme-toggle').on('click', () => {
+            isTheme = !isTheme
+            checkTheme()
+            localStorage.setItem('theme', isTheme)
+        })
+
+        // 更換卡牌背面顏色
+        function changeCardBackColor() {
+            switch (cardBackColor) {
+                case 'Red_back': {
+                    cardBackColor = 'blue_back'
+                    $('.card-back').css('background-image', `url('./cards/${cardBackColor}.jpg')`)
+                    $('.button-card-back-color>span').text("卡牌背面顏色:藍色")
+                    break;
+                }
+                case 'blue_back': {
+                    cardBackColor = 'Yellow_back'
+                    $('.card-back').css('background-image', `url('./cards/${cardBackColor}.jpg')`)
+                    $('.button-card-back-color>span').text("卡牌背面顏色:黃色")
+                    break;
+                }
+                case 'Yellow_back': {
+                    cardBackColor = 'Green_back'
+                    $('.card-back').css('background-image', `url('./cards/${cardBackColor}.jpg')`)
+                    $('.button-card-back-color>span').text("卡牌背面顏色:綠色")
+                    break;
+                }
+                case 'Green_back': {
+                    cardBackColor = 'purple_back'
+                    $('.card-back').css('background-image', `url('./cards/${cardBackColor}.jpg')`)
+                    $('.button-card-back-color>span').text("卡牌背面顏色:紫色")
+                    break;
+                }
+                case 'purple_back': {
+                    cardBackColor = 'Gray_back'
+                    $('.card-back').css('background-image', `url('./cards/${cardBackColor}.jpg')`)
+                    $('.button-card-back-color>span').text("卡牌背面顏色:灰色")
+                    break;
+                }
+                case 'Gray_back': {
+                    cardBackColor = 'Red_back'
+                    $('.card-back').css('background-image', `url('./cards/${cardBackColor}.jpg')`)
+                    $('.button-card-back-color>span').text("卡牌背面顏色:紅色")
+                    break;
+                }
+            }
+        }
+
+        // 介紹
+        gameInfo()
+        // 產生卡牌
+        function gameInfo() {
+            Swal.fire({
+                title: "翻卡牌遊戲",
+                icon: "success",
+                html: `
+                <h2>遊玩說明</h2>
+                <p style="font-family:'新明細體">按下OK後，過5秒卡牌會自動翻面，顯示遊戲開始，將所有相同花色數字卡牌翻面配對成功，即可過關!!</p>
+                <h2>按鈕功能說明</h2>
+                <p>卡牌花色改變、卡牌背面顏色:即時改變</p>
+                <p>透視模式:開啟時，無法翻牌</p>
+                <p>難度選擇:卡牌數量上限、次數限制</p>
+                <p>可切換夜、日模式</p>
+                `,
+                confirmButtonText: `OK`
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    createCard()
+                }
+            });
+        }
+
+        function createCard() {
+            let cardTypeTemp = cardType;
+            for (let i = 0; i < cardMax; i++) {
+                const card = $(`
+            <div class="card">
+                <div class="card-front card-rgb"></div>
+                <div class="card-back card-rgb"></div>
+            </div>
+            `)
+                const number = i % 13 + 1
+
+                if (i !== 0 && i % 27 === 0) {
+                    cardTypeTemp = checkCard(cardTypeTemp)
+                }
+
+                card.find('.card-front').css('background-image', `url(./cards/${cardName[number]}${cardTypeTemp}.jpg)`)
+                card.find('.card-back').css('background-image', `url('./cards/${cardBackColor}.jpg')`)
+                card.attr('data-number', number + cardTypeTemp)
+                $('#game').append(card)
+            }
+            setTimeout(() => {
+                $('.card').addClass('card-close')
+                Swal.fire({
+                    title: "遊戲開始!",
+                    icon: "success"
+                });
+            }, 5000)
+        }
+
+        // 更換卡牌種類
+        function checkCard(type) {
+            switch (type) {
+                case 'H': {
+                    return 'D'
+                }
+                case 'D': {
+                    return 'C'
+                }
+                case 'C': {
+                    return 'S'
+                }
+                case 'S': {
+                    return 'H'
+                }
+            }
+        }
+
+        // 打亂
+        cardRandomChange()
+        function cardRandomChange() {
+            for (let i = 0; i < cardMax; i++) {
+                const cardMaxRandom = cardMax - 1
+                const randA = Math.round(Math.random() * cardMaxRandom)
+                const randB = Math.round(Math.random() * cardMaxRandom)
+                // console.log(randA, randB, cardMaxRandom)
+                $('.card').eq(randA).insertAfter($('.card').eq(randB))
+            }
+        }
+
+
+        $(document).on('click', '.card', function () {
+            // 透視模式開啟時不能翻牌
+            if (isPerspective) {
+                return;
+            }
+
+            // 翻牌
+            if (
+                // .card 沒有 .card-close 代表被翻開
+                // 已翻開的數量 < 2
+                $('.card:not(.card-close)').length < 2 &&
+                // 這張牌還沒被翻開
+                $(this).hasClass('card-close') &&
+                // 這張牌還沒配對
+                !$(this).hasClass('card-ok')
+            ) {
+                $('audio')[0].currentTime = 0;
+                $('audio')[0].play()
+                $(this).removeClass('card-close')
+            }
+
+            // 如果翻開兩張了
+            if ($('.card:not(.card-close)').length === 2) {
+                if (!isCardActiveState) {
+                    // 紀錄猜測次數
+                    guessesCount += 1
+                    $('.text-guesses').text(`${guessesCount}`)
+                    isCardActiveState = true;
+                }
+
+                // 兩張都一樣
+                if (
+                    $('.card:not(.card-close)').eq(0).attr('data-number') ===
+                    $('.card:not(.card-close)').eq(1).attr('data-number')
+                ) {
+                    // 標記已配對
+                    $('.card:not(.card-close)').addClass('card-ok')
+                    $('.card:not(.card-close)').fadeTo(1000, 0)
+                }
+
+                // 等一秒鐘動畫結束
+                setTimeout(function () {
+                    // 不館有沒有配對成功都翻回背面
+                    $('.card:not(.card-close)').addClass('card-close')
+                    isCardActiveState = false;
+                    // 已配對數量 = 卡片數量，過關
+                    if ($('.card-ok').length == $('.card').length) {
+                        Swal.fire({
+                            title: "過關!!",
+                            icon: "success"
+                        });
+
+                        for (const [index, cards] of minguesses.entries()) {
+                            if (cards.totalCards === cardMax) {
+                                if (cards.guesses[limitCountIndex] === 0) {
+                                    saveData(index)
+                                } else if (guessesCount < cards.guesses[limitCountIndex]) {
+                                    saveData(index)
+                                }
+                            }
+                        }
+
+                        guessesCount = 0;
+                        $('.text-guesses').text(`${guessesCount}`)
+                    } else if (limitCount != 0 && guessesCount > limitCount) {
+                        Swal.fire({
+                            title: "超過限制次數了!!遊戲結束!!",
+                            icon: "error"
+                        });
+                        restartGame()
+                    }
+                }, 1000)
+
+            }
+        })
+
+        function loadData() {
+            if (localStorage.card) {
+                const data = JSON.parse(localStorage.card)
+
+                for (const [index, cards] of minguesses.entries()) {
+                    cards.name[limitCountIndex] = data[index].name[limitCountIndex]
+                    cards.guesses[limitCountIndex] = data[index].guesses[limitCountIndex]
+                }
+
+                $('.text-minguesses-player').text(minguesses[0].name[limitCountIndex])
+                $('.text-minguesses').text(minguesses[0].guesses[limitCountIndex])
+                $('.text-minguesseslimit').text('不限制')
+            }
+
+            if (localStorage.getItem('theme')) {
+                localStorage.getItem('theme') === 'true' ? isTheme = true : isTheme = false
+                checkTheme()
+            } else if (!localStorage.getItem('theme')) {
+                localStorage.setItem('theme', false)
+            }
+        }
+
+        function saveData(numbers) {
+            const name = prompt(`恭喜你成功破關！卡片數量:${cardMax} 總猜測次數：${guessesCount}，限制次數:${limitCountIndex == 0 ? '不限制' :
+                minguesses[numbers].limitCounts[limitCountIndex]}，請輸入名子`) || 'user'
+            minguesses[numbers].guesses[limitCountIndex] = guessesCount
+            minguesses[numbers].name[limitCountIndex] = name
+            $('.text-minguesses-player').text(minguesses[numbers].name[limitCountIndex])
+            $('.text-minguesses').text(minguesses[numbers].guesses[limitCountIndex])
+            // 儲存最低猜測玩家資料
+            localStorage.card = JSON.stringify(minguesses)
+        }
+
+        function checkTheme() {
+            if (isTheme) {
+                $('.button-theme-toggle>span').text('日')
+                $('body').addClass('dark-mode')
+                $('.list:not(span)').addClass('dark-mode')
+            } else if (!isTheme) {
+                $('.button-theme-toggle>span').text('夜')
+                $('body').removeClass('dark-mode')
+                $('.list:not(span)').removeClass('dark-mode')
+            }
+        }
+    </script>
+</body>
+
+</html>
